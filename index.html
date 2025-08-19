@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Méta-recherche Immo France (gratuit)</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; line-height: 1.45; }
+    header { margin-bottom: 16px; }
+    h1 { font-size: 1.4rem; margin: 0 0 8px 0; }
+    form { display: grid; gap: 12px; max-width: 720px; }
+    fieldset { border: 1px solid #ddd; border-radius: 8px; padding: 12px; }
+    label { display: block; font-weight: 600; margin-bottom: 6px; }
+    input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 8px; font-size: 1rem; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    button { padding: 12px 16px; border-radius: 10px; border: 0; font-weight: 700; cursor: pointer; }
+    button.primary { background: #1a73e8; color: white; }
+    button.secondary { background: #eee; }
+    .results { margin-top: 24px; }
+    .card { border: 1px solid #eee; border-radius: 12px; padding: 12px; margin-bottom: 12px; }
+    .links { display: grid; gap: 8px; }
+    .note { font-size: 0.92rem; color: #444; }
+    footer { margin-top: 32px; font-size: 0.9rem; color: #555; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🔎 Méta-recherche immobilière (France) — 100% gratuit</h1>
+    <p class="note">Ce site n’aspire rien : il ouvre des recherches en direct sur les sites officiels (légal & temps réel).</p>
+  </header>
+
+  <form id="criteriaForm">
+    <fieldset>
+      <legend><strong>Vos critères</strong></legend>
+
+      <div class="row">
+        <div>
+          <label for="city">Ville / Code postal</label>
+          <input id="city" name="city" placeholder="ex : Nantes ou 44000" required />
+        </div>
+        <div>
+          <label for="radius">Rayon (km) — facultatif</label>
+          <input id="radius" name="radius" type="number" min="0" step="1" placeholder="ex : 10" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="budget">Budget max (€)</label>
+          <input id="budget" name="budget" type="number" min="0" step="1000" placeholder="ex : 300000" required />
+        </div>
+        <div>
+          <label for="minSurface">Surface min (m²) — facultatif</label>
+          <input id="minSurface" name="minSurface" type="number" min="0" step="1" placeholder="ex : 40" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label for="type">Type</label>
+          <select id="type" name="type">
+            <option value="">Indifférent</option>
+            <option value="maison">Maison</option>
+            <option value="appartement">Appartement</option>
+            <option value="terrain">Terrain</option>
+            <option value="immeuble">Immeuble</option>
+          </select>
+        </div>
+        <div>
+          <label for="dpe">DPE (sélection multiple : Ctrl/Cmd + clic)</label>
+          <select id="dpe" name="dpe" multiple>
+            <option value="A">A</option><option value="B">B</option>
+            <option value="C">C</option><option value="D">D</option>
+            <option value="E">E</option><option value="F">F</option>
+            <option value="G">G</option>
+          </select>
+          <p class="note">Si vous ne choisissez rien : DPE indifférent.</p>
+        </div>
+      </div>
+
+      <div>
+        <label for="audit">Doit mentionner “audit énergétique” ?</label>
+        <select id="audit">
+          <option value="">Indifférent</option>
+          <option value="audit">Oui, je veux que l'annonce mentionne un audit énergétique</option>
+        </select>
+      </div>
+    </fieldset>
+
+    <div class="actions">
+      <button type="submit" class="primary">Générer les recherches</button>
+      <button type="button" id="openAll" class="secondary" disabled>Ouvrir tout (plusieurs onglets)</button>
+    </div>
+  </form>
+
+  <section class="results" id="results" hidden>
+    <h2>Résultats (cliquez pour ouvrir)</h2>
+    <div class="card">
+      <div class="links" id="links"></div>
+    </div>
+    <p class="note">Astuce : ajoutez cette page à votre écran d’accueil (mobile) pour relancer vos recherches en 2 tap.</p>
+  </section>
+
+  <footer>
+    <p class="note">Respectez toujours les CGU des sites. Cette page n’automatise aucun téléchargement de contenu : elle construit des requêtes publiques.</p>
+  </footer>
+
+  <script>
+    const SITES = [
+      { name: "Le Bon Coin", domain: "leboncoin.fr" },
+      { name: "SeLoger", domain: "seloger.com" },
+      { name: "Bien'ici", domain: "bienici.com" },
+      { name: "PAP", domain: "pap.fr" },
+      { name: "Ouest-France Immo", domain: "ouestfrance-immo.com" },
+      { name: "Logic-Immo", domain: "logic-immo.com" },
+      { name: "Figaro Immobilier", domain: "immobilier.lefigaro.fr" }
+    ];
+
+    const form = document.getElementById('criteriaForm');
+    const linksDiv = document.getElementById('links');
+    const results = document.getElementById('results');
+    const openAllBtn = document.getElementById('openAll');
+
+    function getSelectedDPE() {
+      const sel = document.getElementById('dpe');
+      return Array.from(sel.selectedOptions).map(o => o.value);
+    }
+
+    function sanitize(s) {
+      return (s || "").trim();
+    }
+
+    function buildQueryTokens(values) {
+      const tokens = [];
+
+      // ville / CP
+      if (values.city) tokens.push(`"${values.city}"`);
+
+      // type
+      if (values.type) {
+        if (values.type === "appartement") tokens.push('(appartement OR "T1" OR "T2" OR "T3" OR "T4")');
+        else if (values.type === "maison") tokens.push('(maison)');
+        else if (values.type === "terrain") tokens.push('(terrain)');
+        else if (values.type === "immeuble") tokens.push('(immeuble)');
+      } else {
+        tokens.push('(maison OR appartement)');
+      }
+
+      // budget (utilise l'opérateur plage numérique 0..budget)
+      if (values.budget) tokens.push(`0..${values.budget}`);
+
+      // surface min (approximatif via mots-clés)
+      if (values.minSurface) tokens.push(`(${values.minSurface}m² OR "m2 ${values.minSurface}")`);
+
+      // DPE
+      if (values.dpe && values.dpe.length) {
+        const dpeParts = values.dpe.map(x => `"DPE ${x}" OR "classe énergétique ${x}"`);
+        tokens.push("(" + dpeParts.join(" OR ") + ")");
+      }
+
+      // audit énergétique
+      if (values.audit === "audit") tokens.push(`"audit énergétique"`);
+
+      return tokens.join(" ");
+    }
+
+    function googleURL(domain, queryTokens, radiusKm) {
+      // Recherche Google restreinte au domaine
+      // On ajoute éventuellement la ville avec un opérateur "near" approximatif en texte.
+      const base = "https://www.google.com/search?q=";
+      const q = `site:${domain} ${queryTokens}`;
+      // Note: Google ignore souvent un "rayon" textuel, mais on garde le terme pour contextualiser
+      const radiusHint = radiusKm ? ` ${radiusKm}km` : "";
+      return base + encodeURIComponent(q + radiusHint);
+    }
+
+    function saveToLocal(values) {
+      try { localStorage.setItem("immo_criteria", JSON.stringify(values)); } catch (_) {}
+    }
+    function loadFromLocal() {
+      try {
+        const raw = localStorage.getItem("immo_criteria");
+        if (!raw) return;
+        const v = JSON.parse(raw);
+        if (v.city) document.getElementById('city').value = v.city;
+        if (v.radius) document.getElementById('radius').value = v.radius;
+        if (v.budget) document.getElementById('budget').value = v.budget;
+        if (v.minSurface) document.getElementById('minSurface').value = v.minSurface;
+        if (v.type) document.getElementById('type').value = v.type;
+        if (v.audit) document.getElementById('audit').value = v.audit;
+        if (Array.isArray(v.dpe)) {
+          const sel = document.getElementById('dpe');
+          const wanted = new Set(v.dpe);
+          Array.from(sel.options).forEach(o => o.selected = wanted.has(o.value));
+        }
+      } catch (_) {}
+    }
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const values = {
+        city: sanitize(document.getElementById('city').value),
+        radius: sanitize(document.getElementById('radius').value),
+        budget: sanitize(document.getElementById('budget').value),
+        minSurface: sanitize(document.getElementById('minSurface').value),
+        type: document.getElementById('type').value,
+        dpe: getSelectedDPE(),
+        audit: document.getElementById('audit').value
+      };
+      saveToLocal(values);
+
+      const tokens = buildQueryTokens(values);
+      linksDiv.innerHTML = "";
+
+      const links = SITES.map(site => {
+        const url = googleURL(site.domain, tokens, values.radius);
+        const a = document.createElement('a');
+        a.href = url;
+        a.target = "_blank";
+        a.rel = "noopener";
+        a.textContent = `🔗 ${site.name}`;
+        return a;
+      });
+
+      // Lien global multi-sites (OR) — pratique pour une vue d'ensemble
+      const multiDomains = SITES.map(s => `site:${s.domain}`).join(" OR ");
+      const multiURL = "https://www.google.com/search?q=" + encodeURIComponent(`${multiDomains} ${tokens}`);
+      const allLink = document.createElement('a');
+      allLink.href = multiURL;
+      allLink.target = "_blank";
+      allLink.rel = "noopener";
+      allLink.textContent = "🔎 Vue d'ensemble (tous les sites)";
+
+      linksDiv.appendChild(allLink);
+      links.forEach(a => linksDiv.appendChild(a));
+      results.hidden = false;
+
+      // Activer le bouton "Ouvrir tout"
+      openAllBtn.disabled = false;
+      openAllBtn.onclick = () => {
+        // Ouvre jusqu'à ~8 onglets (les navigateurs peuvent en bloquer certains)
+        const openList = [allLink, ...links];
+        openList.forEach((a, i) => {
+          setTimeout(() => window.open(a.href, "_blank", "noopener"), i * 150);
+        });
+      };
+
+      // Scroll vers les résultats
+      results.scrollIntoView({ behavior: "smooth" });
+    });
+
+    // init
+    loadFromLocal();
+  </script>
+</body>
+</html>
