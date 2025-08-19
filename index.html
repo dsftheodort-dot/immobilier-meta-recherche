@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Méta-recherche Immo France (direct)</title>
+  <title>Méta-recherche Immo France (multi-sites)</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; }
     h1 { font-size: 1.4rem; }
@@ -15,7 +15,7 @@
   </style>
 </head>
 <body>
-  <h1>🔎 Méta-recherche immo (LeBonCoin, SeLoger, Bien’ici)</h1>
+  <h1>🔎 Méta-recherche immo (France)</h1>
 
   <form id="criteriaForm">
     <label>Ville (ex : Paris ou Lyon)
@@ -34,6 +34,10 @@
       <option value="terrain">Terrain</option>
     </select>
 
+    <label>Mots-clés (facultatif, ex: "non loué, travaux, investissement")
+      <input id="keywords" placeholder="séparez par des virgules" />
+    </label>
+
     <button type="submit">Générer mes recherches</button>
   </form>
 
@@ -49,40 +53,55 @@ function normalizeCity(city) {
 
 document.getElementById("criteriaForm").addEventListener("submit", e => {
   e.preventDefault();
-  const city = document.getElementById("city").value;
-  const budget = document.getElementById("budget").value;
+  const city = document.getElementById("city").value.trim();
+  const budget = document.getElementById("budget").value.trim();
   const type = document.getElementById("type").value;
+  const keywords = document.getElementById("keywords").value.trim();
 
   const cityParam = normalizeCity(city);
+  const kw = keywords ? " " + keywords : "";
 
   const linksDiv = document.getElementById("links");
   linksDiv.innerHTML = "";
 
-  // LEBONCOIN
+  // ---- LEBONCOIN ----
   let lbcType = "";
   if (type === "maison") lbcType = "&real_estate_type=1";
   else if (type === "appartement") lbcType = "&real_estate_type=2";
   else if (type === "terrain") lbcType = "&real_estate_type=3";
-
-  const lbcURL = `https://www.leboncoin.fr/recherche?category=9&locations=${encodeURIComponent(cityParam)}&price=0-${budget}${lbcType}`;
+  const lbcURL = `https://www.leboncoin.fr/recherche?category=9&locations=${encodeURIComponent(cityParam)}&price=0-${budget}${lbcType}&text=${encodeURIComponent(keywords)}`;
   linksDiv.innerHTML += `<a target="_blank" href="${lbcURL}">🏠 Le Bon Coin</a>`;
 
-  // SELOGER (simplifié avec prix et type)
+  // ---- SELOGER ----
   let seType = "";
   if (type === "appartement") seType = "&types=1";
   else if (type === "maison") seType = "&types=2";
-
-  const selogerURL = `https://www.seloger.com/list.htm?prix=${budget}${seType}&q=${encodeURIComponent(city)}`;
+  const selogerURL = `https://www.seloger.com/list.htm?prix=${budget}${seType}&q=${encodeURIComponent(city + kw)}`;
   linksDiv.innerHTML += `<a target="_blank" href="${selogerURL}">🏢 SeLoger</a>`;
 
-  // BIEN’ICI
+  // ---- BIEN’ICI ----
   let bieniciType = "";
   if (type === "appartement") bieniciType = "&propertyType=apartment";
   else if (type === "maison") bieniciType = "&propertyType=house";
   else if (type === "terrain") bieniciType = "&propertyType=land";
-
-  const bieniciURL = `https://www.bienici.com/recherche/achat?price-max=${budget}&text=${encodeURIComponent(city)}${bieniciType}`;
+  const bieniciURL = `https://www.bienici.com/recherche/achat?price-max=${budget}&text=${encodeURIComponent(city + kw)}${bieniciType}`;
   linksDiv.innerHTML += `<a target="_blank" href="${bieniciURL}">🌐 Bien’ici</a>`;
+
+  // ---- PAP ----
+  const papURL = `https://www.pap.fr/annonce/vente-immobilier-${encodeURIComponent(city)}-r${budget}?q=${encodeURIComponent(keywords)}`;
+  linksDiv.innerHTML += `<a target="_blank" href="${papURL}">📄 PAP</a>`;
+
+  // ---- Logic-Immo ----
+  const logicURL = `https://www.logic-immo.com/recherche-immobiliere?localisations=${encodeURIComponent(city)}&prixMax=${budget}&query=${encodeURIComponent(keywords)}`;
+  linksDiv.innerHTML += `<a target="_blank" href="${logicURL}">📊 Logic-Immo</a>`;
+
+  // ---- Figaro Immo ----
+  const figaroURL = `https://immobilier.lefigaro.fr/annonces/resultat/achat/?prix_max=${budget}&q=${encodeURIComponent(city + kw)}`;
+  linksDiv.innerHTML += `<a target="_blank" href="${figaroURL}">📰 Figaro Immo</a>`;
+
+  // ---- Ouest-France Immo ----
+  const ofURL = `https://www.ouestfrance-immo.com/acheter/?Commune=${encodeURIComponent(city)}&PrixMax=${budget}&q=${encodeURIComponent(keywords)}`;
+  linksDiv.innerHTML += `<a target="_blank" href="${ofURL}">🌍 Ouest-France Immo</a>`;
 
   document.getElementById("results").hidden = false;
 });
